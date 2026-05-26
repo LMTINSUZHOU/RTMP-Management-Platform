@@ -1,0 +1,54 @@
+services:
+  srs:
+    image: ossrs/srs:5
+    container_name: rtmp-srs
+    ports:
+      - "1935:1935"    # RTMP
+      - "1985:1985"    # HTTP API
+      - "8080:8080"    # HTTP-FLV / HLS
+    volumes:
+      - ./srs/srs.conf:/usr/local/srs/conf/srs.conf
+      - ./recordings:/recordings
+    restart: unless-stopped
+    networks:
+      - rtmp-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rtmp-backend
+    ports:
+      - "8081:8081"
+    environment:
+      - SRS_API_URL=http://srs:1985
+      - SRS_STREAM_URL=rtmp://srs:1935/live
+      - SRS_HTTP_FLV_URL=http://srs:8080/live
+      - RECORDINGS_DIR=/recordings
+      - SERVER_PORT=8081
+      - PUBLIC_FLV_URL=/live
+      - PUBLIC_RTMP_URL=rtmp://localhost:1935/live
+    volumes:
+      - ./recordings:/recordings
+    depends_on:
+      - srs
+    restart: unless-stopped
+    networks:
+      - rtmp-network
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: rtmp-web
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - rtmp-network
+
+networks:
+  rtmp-network:
+    driver: bridge
